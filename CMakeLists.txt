@@ -48,7 +48,8 @@ if(ANDROID)
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${BEDROCK_PRELOADER_INCLUDE_DIR}
     )
-    target_link_libraries(bedrock_api PRIVATE bedrock_api_core preloader log dl)
+    find_library(log-lib log REQUIRED)
+    target_link_libraries(bedrock_api PRIVATE bedrock_api_core preloader ${log-lib} dl)
     target_compile_options(bedrock_api PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
     target_link_options(bedrock_api PRIVATE "-Wl,-z,max-page-size=16384")
 
