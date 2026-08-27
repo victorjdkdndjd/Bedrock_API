@@ -1,0 +1,9 @@
+{
+  "type": "preload-native",
+  "name": "Bedrock API",
+  "author": "Victor",
+  "version": "@PROJECT_VERSION@",
+  "entry": "libbedrock_api.so",
+  "icon": "",
+  "minecraft_versions": ["1.26.*"]
+}
