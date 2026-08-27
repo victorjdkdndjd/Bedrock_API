@@ -1,5 +1,5 @@
 #pragma once
-#include <ll/api/mod/NativeMod.h>
+#include <pl/Mod.hpp>
 namespace bedrock::api {
 class BedrockApiMod {
 public:
