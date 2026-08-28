@@ -28,7 +28,7 @@ bool run() {
     const auto& profile = core::currentBuildProfile();
 
     log.info("============================================================");
-    log.info("Bedrock_API Probe {} (READ-ONLY / NO GAMEPLAY HOOKS)", VersionString);
+    log.info("Bedrock_API Probe {} (RESOLVER FIRST / ONE OBSERVATIONAL HOOK AFTER PASS)", VersionString);
     log.info("profile: {}", profile.name);
     log.info("expected Minecraft version hint: {}", profile.minecraftVersionHint);
     log.info("expected Minecraft Build ID: {}", profile.minecraftBuildId);
@@ -101,8 +101,8 @@ bool run() {
     log.info("required Minecraft targets: {}/{} PASS", requiredPassed, requiredTargets);
     log.info("auxiliary modules observed: {}", optionalLoaded);
     log.info("auxiliary sentinels resolved: {}", optionalSentinelsPassed);
-    log.info("Probe result: {}", requiredOk ? "PASS" : "FAIL-CLOSED");
-    log.info("No target was invoked and no gameplay hook was installed by this probe.");
+    log.info("Resolver result: {}", requiredOk ? "PASS" : "FAIL-CLOSED");
+    log.info("No native target was invoked during this resolver phase.");
     log.info("============================================================");
 
     return requiredOk;
