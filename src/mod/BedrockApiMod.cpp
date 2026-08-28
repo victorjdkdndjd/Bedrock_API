@@ -2,6 +2,7 @@
 
 #include "BedrockAPI/Runtime.hpp"
 #include "BedrockAPI/Version.hpp"
+#include "HookProbe.hpp"
 #include "SelfTest.hpp"
 
 namespace bedrock::api {
@@ -13,8 +14,8 @@ BedrockApiMod& BedrockApiMod::instance() {
 BedrockApiMod::BedrockApiMod() : mSelf(*ll::mod::NativeMod::current()) {}
 
 bool BedrockApiMod::load() {
-    getSelf().getLogger().info("Bedrock API {} loading (probe mode)", VersionString);
-    getSelf().getLogger().info("Probe policy: read-only resolver checks; no gameplay hooks are installed");
+    getSelf().getLogger().info("Bedrock API {} loading (first-hook probe)", VersionString);
+    getSelf().getLogger().info("Probe policy: resolver checks first; only LocalPlayer::normalTick may be hooked after full PASS");
     return true;
 }
 
@@ -24,19 +25,27 @@ bool BedrockApiMod::enable() {
 
     if (!minecraftPresent) {
         getSelf().getLogger().warn("libminecraftpe.so was not present when the probe ran; API remains fail-closed");
+        return true;
     }
     if (!probePassed) {
-        getSelf().getLogger().warn("Bedrock API probe did not pass required checks; unsafe capabilities remain disabled");
+        getSelf().getLogger().warn("Bedrock API resolver probe did not pass; first-hook test remains disabled");
+        return true;
+    }
+
+    if (!hookprobe::install()) {
+        getSelf().getLogger().warn("Bedrock API first-hook probe could not be installed; gameplay remains unmodified");
     }
     return true;
 }
 
 bool BedrockApiMod::disable() {
-    getSelf().getLogger().info("Bedrock API disabled; no probe hooks require cleanup");
+    hookprobe::uninstall();
+    getSelf().getLogger().info("Bedrock API disabled; first-hook probe cleaned up");
     return true;
 }
 
 bool BedrockApiMod::unload() {
+    hookprobe::uninstall();
     return true;
 }
 } // namespace bedrock::api
