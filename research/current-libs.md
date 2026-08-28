@@ -1,6 +1,6 @@
 # Current supplied native library inventory
 
-Analyzed input set on 2026-08-27. All eight supplied binaries are ELF64 AArch64 shared objects and are stripped.
+Analyzed input set on 2026-08-27. The original eight supplied binaries are ELF64 AArch64 shared objects and are stripped.
 
 | Library | Size | SHA-256 | GNU Build ID | Defined dynamic symbols | Defined functions |
 |---|---:|---|---|---:|---:|
@@ -13,6 +13,22 @@ Analyzed input set on 2026-08-27. All eight supplied binaries are ELF64 AArch64 
 | libc++_shared.so | 1,253,544 | `cd61762848882a16c8244c964a6f396c0caa0b440588a210ce9cc4ab0e6d9f0c` | `7befe631535aa853c4f4ac1293e49dcea34c9b6e` | 2,340 | 1,585 |
 | libfmod.so | 1,179,776 | `cccad0a7e5cd5c975bb40979c418a66ca8448536549ff5ca352826180c605a6e` | `4b8a6d0f35523701689a1db408d649a9` | 1,298 | 1,124 |
 
+## Additional supplied MAE SDK variant
+
+A `libmaesdk.so` was supplied after the first device probe:
+
+- Size: `7,375,120` bytes
+- SHA-256: `589049e99d8e37757027c86756c58b907345562a487938a0c32369a53eec2259`
+- GNU Build ID: `33aef83e0544ae958a51db7fbd7b6c922222b279`
+- ELF64 AArch64, Android API 21
+- Built with NDK `r27c (12479018)`
+- Stripped
+- About 7,455 defined dynamic functions
+- SONAME: `libmaesdk.so`
+- Useful exported sentinel: `sqlite3_libversion`
+
+This supplied binary is **not the same MAE build observed in device probe run 1**. The loaded game module reported Build ID `358383fd3a2b96ebc0c328f3925bb84891ac1bf1`. Bedrock_API therefore treats MAE as a multi-variant optional module and resolves only stable exported sentinels until the exact runtime binary is available for fingerprinting.
+
 ## Useful stable export surfaces
 
 - HttpClient exposes `HC*` functions, including `HCGetLibVersion`, request/response APIs and WebSocket routing.
@@ -22,6 +38,7 @@ Analyzed input set on 2026-08-27. All eight supplied binaries are ELF64 AArch64 
 - Conscrypt exports `JNI_OnLoad` plus its native TLS/crypto surface.
 - PairIP has only three dynamic exports: `ExecuteProgram`, `JNI_OnLoad`, `JNI_OnUnload`.
 - libc++ exposes the expected NDK runtime surface such as `__cxa_demangle`.
+- MAE SDK exposes Microsoft Applications Events telemetry/JNI code plus a bundled SQLite surface. `sqlite3_libversion` is used only as a resolver sentinel and is not invoked by the probe.
 
 ## Minecraft-specific observation
 
