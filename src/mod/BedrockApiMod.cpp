@@ -14,8 +14,9 @@ BedrockApiMod& BedrockApiMod::instance() {
 BedrockApiMod::BedrockApiMod() : mSelf(*ll::mod::NativeMod::current()) {}
 
 bool BedrockApiMod::load() {
-    getSelf().getLogger().info("Bedrock API {} loading (first-hook probe)", VersionString);
-    getSelf().getLogger().info("Probe policy: resolver checks first; only LocalPlayer::normalTick may be hooked after full PASS");
+    getSelf().getLogger().info("Bedrock API {} loading (PlayerBridge probe)", VersionString);
+    getSelf().getLogger().info(
+        "Probe policy: resolver first; then LocalPlayer::normalTick + ClientInstance::update observational hooks with sparse getLocalPlayer reads");
     return true;
 }
 
@@ -28,19 +29,19 @@ bool BedrockApiMod::enable() {
         return true;
     }
     if (!probePassed) {
-        getSelf().getLogger().warn("Bedrock API resolver probe did not pass; first-hook test remains disabled");
+        getSelf().getLogger().warn("Bedrock API resolver probe did not pass; PlayerBridge remains disabled");
         return true;
     }
 
     if (!hookprobe::install()) {
-        getSelf().getLogger().warn("Bedrock API first-hook probe could not be installed; gameplay remains unmodified");
+        getSelf().getLogger().warn("Bedrock API PlayerBridge probe could not be installed; no mutation fallback is attempted");
     }
     return true;
 }
 
 bool BedrockApiMod::disable() {
     hookprobe::uninstall();
-    getSelf().getLogger().info("Bedrock API disabled; first-hook probe cleaned up");
+    getSelf().getLogger().info("Bedrock API disabled; PlayerBridge probe cleaned up");
     return true;
 }
 
