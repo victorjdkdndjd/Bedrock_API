@@ -23,6 +23,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var exportButton: Button
 
     private lateinit var translator: ApkTranslator
+    private lateinit var analyzer: SafeApkAnalyzer
     private var importedApk: File? = null
     private var generatedApk: File? = null
     private var analysis: ApkTranslator.Analysis? = null
@@ -46,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         translator = ApkTranslator(this)
+        analyzer = SafeApkAnalyzer(this)
         buildUi()
     }
 
@@ -56,11 +58,11 @@ class MainActivity : AppCompatActivity() {
             setPadding(pad, pad, pad, pad)
         }
         root.addView(TextView(this).apply {
-            text = "ChinaBedrock Translator"
+            text = "ChinaBedrock Translator v0.1.1"
             textSize = 26f
         })
         root.addView(TextView(this).apply {
-            text = "Importe o APK do Minecraft China, analise textos e gere uma cópia pt-BR de teste."
+            text = "Importe o APK do Minecraft China. Esta versão usa análise em streaming para APKs grandes."
             textSize = 15f
         })
         importButton = Button(this).apply {
@@ -100,15 +102,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun importApk(uri: Uri) {
         busy(true)
-        setStatus("Copiando e analisando APK…")
+        setStatus("Copiando APK para área de trabalho…")
+        details.text = "O APK é grande; a análise pode demorar, mas agora é feita em streaming para reduzir uso de RAM."
         thread {
             try {
+                // Do not accumulate multiple multi-GB imports in cache.
+                cacheDir.listFiles()?.filter { it.name.startsWith("imported_") }?.forEach { it.delete() }
+
                 val input = File(cacheDir, "imported_${System.currentTimeMillis()}.apk")
                 contentResolver.openInputStream(uri)?.use { src ->
-                    FileOutputStream(input).use { dst -> src.copyTo(dst) }
+                    FileOutputStream(input).buffered(1024 * 1024).use { dst -> src.copyTo(dst, 1024 * 1024) }
                 } ?: error("Não foi possível abrir o arquivo")
 
-                val found = translator.analyze(input)
+                runOnUiThread { setStatus("APK copiado. Analisando sem carregar tudo na memória…") }
+                val found = analyzer.analyze(input)
                 importedApk = input
                 analysis = found
                 generatedApk = null
@@ -117,7 +124,12 @@ class MainActivity : AppCompatActivity() {
                     buildButton.isEnabled = true
                     exportButton.isEnabled = false
                     setStatus(if (found.packageName == "com.netease.x19") "Minecraft China reconhecido ✅" else "APK importado, mas package não é com.netease.x19 ⚠️")
-                    details.text = found.pretty()
+                    details.text = found.pretty() + "\nAnalisador: streaming/baixo uso de memória (v0.1.1)"
+                    busy(false)
+                }
+            } catch (oom: OutOfMemoryError) {
+                runOnUiThread {
+                    setStatus("Memória insuficiente durante a análise. A v0.1.1 reduziu bastante o uso; envie esta mensagem se ainda ocorrer.")
                     busy(false)
                 }
             } catch (t: Throwable) {
@@ -138,6 +150,8 @@ class MainActivity : AppCompatActivity() {
             try {
                 val unsigned = File(cacheDir, "minecraft_china_ptbr_unsigned.apk")
                 val signed = File(cacheDir, "minecraft_china_ptbr_signed.apk")
+                unsigned.delete()
+                signed.delete()
                 val stats = translator.generateSigned(source, unsigned, signed)
                 generatedApk = signed
                 runOnUiThread {
@@ -145,6 +159,12 @@ class MainActivity : AppCompatActivity() {
                     buildButton.isEnabled = true
                     details.append("\n\n=== GERAÇÃO PT-BR ===\nArquivos alterados: ${stats.filesChanged}\nSubstituições: ${stats.replacements}\nAPK assinado: ${signed.length() / (1024 * 1024)} MB\n\nIMPORTANTE: esta é uma assinatura de teste, não a assinatura oficial da NetEase. O APK pode ser recusado por verificações de integridade. Para instalar, normalmente será necessário remover a instalação oficial com o mesmo package primeiro.")
                     setStatus("APK PT-BR de teste gerado ✅")
+                    busy(false)
+                }
+            } catch (oom: OutOfMemoryError) {
+                runOnUiThread {
+                    buildButton.isEnabled = true
+                    setStatus("Memória insuficiente durante a reconstrução. A próxima etapa será tornar a geração também totalmente streaming.")
                     busy(false)
                 }
             } catch (t: Throwable) {
