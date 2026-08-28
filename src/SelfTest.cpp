@@ -28,7 +28,7 @@ bool run() {
     const auto& profile = core::currentBuildProfile();
 
     log.info("============================================================");
-    log.info("Bedrock_API Probe {} (RESOLVER FIRST / ONE OBSERVATIONAL HOOK AFTER PASS)", VersionString);
+    log.info("Bedrock_API Probe {} (RESOLVER FIRST / PLAYERBRIDGE AFTER PASS)", VersionString);
     log.info("profile: {}", profile.name);
     log.info("expected Minecraft version hint: {}", profile.minecraftVersionHint);
     log.info("expected Minecraft Build ID: {}", profile.minecraftBuildId);
@@ -103,6 +103,8 @@ bool run() {
     log.info("auxiliary sentinels resolved: {}", optionalSentinelsPassed);
     log.info("Resolver result: {}", requiredOk ? "PASS" : "FAIL-CLOSED");
     log.info("No native target was invoked during this resolver phase.");
+    log.info("If PASS, v0.3 installs two observational hooks and sparsely invokes only ClientInstance::getLocalPlayer.");
+    log.info("BlockSource::getBlock remains resolver-only and is not invoked by v0.3.");
     log.info("============================================================");
 
     return requiredOk;
