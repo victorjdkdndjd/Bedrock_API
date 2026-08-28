@@ -21,6 +21,7 @@ enum class TargetId : std::uint16_t {
     ConscryptJniOnLoad,
     CxxDemangle,
     FmodSystemGetVersion,
+    MaeSqliteLibVersion,
 };
 
 enum class Confidence : std::uint8_t {
