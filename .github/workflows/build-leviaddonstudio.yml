@@ -21,10 +21,17 @@ jobs:
 
       - name: Clone pinned LeviLaunchroid
         run: |
-          git clone --recurse-submodules https://github.com/LiteLDev/LeviLaunchroid.git upstream
+          EXPECTED_SHA="46b42daa6be240b180016bb55fa36018e7784506"
+          git clone --depth 1 --branch main --no-recurse-submodules \
+            https://github.com/LiteLDev/LeviLaunchroid.git upstream
           cd upstream
-          git checkout 46b42daa6be240b180016bb55fa36018e7784506
-          git submodule update --init --recursive
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          echo "LeviLaunchroid: $ACTUAL_SHA"
+          if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+            echo "Pinned upstream changed: expected $EXPECTED_SHA, got $ACTUAL_SHA"
+            exit 1
+          fi
+          git submodule update --init --recursive --depth 1 --jobs 4
 
       - name: Install LeviAddon Studio source
         run: |
