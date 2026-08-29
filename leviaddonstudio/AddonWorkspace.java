@@ -319,7 +319,7 @@ public final class AddonWorkspace {
 
     private static String behaviorPackUuid() { return stableUuid(MANIFEST_SEED + ":bp:header"); }
     private static String resourcePackUuid() { return stableUuid(MANIFEST_SEED + ":rp:header"); }
-    private static JSONArray version() { return new JSONArray().put(0).put(3).put(0); }
+    private static JSONArray version() { return new JSONArray().put(0).put(3).put(1); }
 
     private static String readVanillaAsset(Activity activity, String entityName) throws Exception {
         String path = VANILLA_ASSET_DIR + "/" + sanitizeVanillaName(entityName) + ".json";
@@ -474,11 +474,11 @@ public final class AddonWorkspace {
     public static final class WorldInfo {
         public final String name;
         public final File directory;
-        public final long modified;
-        WorldInfo(String name, File directory, long modified) {
+        public final long stamp;
+        WorldInfo(String name, File directory, long stamp) {
             this.name = name;
             this.directory = directory;
-            this.modified = modified;
+            this.stamp = stamp;
         }
     }
 }
