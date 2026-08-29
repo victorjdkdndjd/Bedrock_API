@@ -72,6 +72,26 @@ jobs:
           ndk-version: r28c
           link-to-sdk: true
 
+      - name: Create stable development signing key
+        run: |
+          python3 -m pip install --quiet cryptography
+          python3 leviaddonstudio/make_dev_keystore.py
+          mkdir -p "$HOME/.android"
+          rm -f "$HOME/.android/debug.keystore"
+          keytool -importkeystore -noprompt \
+            -srckeystore leviaddonstudio-dev.p12 \
+            -srcstoretype PKCS12 \
+            -srcstorepass android \
+            -srcalias androiddebugkey \
+            -destkeystore "$HOME/.android/debug.keystore" \
+            -deststoretype JKS \
+            -deststorepass android \
+            -destkeypass android \
+            -destalias androiddebugkey
+          echo "Stable development certificate:"
+          keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android \
+            | grep -E "Alias name:|SHA256:" | head -n 2
+
       - name: Prepare CI configuration
         working-directory: upstream
         run: |
@@ -119,13 +139,13 @@ jobs:
             echo "APK not found"
             exit 1
           fi
-          cp "$APK" LeviAddonStudio-v0.1-arm64-debug.apk
-          ls -lh LeviAddonStudio-v0.1-arm64-debug.apk
+          cp "$APK" LeviAddonStudio-v0.2-arm64-debug.apk
+          ls -lh LeviAddonStudio-v0.2-arm64-debug.apk
 
       - name: Upload LeviAddon Studio APK
         uses: actions/upload-artifact@v4
         with:
-          name: LeviAddonStudio-v0.1-arm64-debug
-          path: LeviAddonStudio-v0.1-arm64-debug.apk
+          name: LeviAddonStudio-v0.2-arm64-debug
+          path: LeviAddonStudio-v0.2-arm64-debug.apk
           if-no-files-found: error
           retention-days: 14
