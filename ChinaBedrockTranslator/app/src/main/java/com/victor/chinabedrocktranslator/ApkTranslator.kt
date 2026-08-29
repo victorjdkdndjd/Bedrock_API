@@ -26,6 +26,7 @@ import java.security.cert.X509Certificate
 import java.util.Calendar
 import java.util.LinkedHashMap
 import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import javax.security.auth.x500.X500Principal
@@ -52,13 +53,18 @@ class ApkTranslator(private val context: Context) {
                 val bytes = readEntryBytes(zin, MAX_TEXT_BYTES.toInt())
                 val text = decodeUtf8(bytes) ?: continue
                 textFiles++
-                val matches = chineseRegex.findAll(text).toList()
-                if (matches.isNotEmpty()) {
+                var localCount = 0
+                val localExamples = ArrayList<String>(8)
+                val iterator = chineseRegex.findAll(text).iterator()
+                while (iterator.hasNext()) {
+                    val value = iterator.next().value
+                    localCount++
+                    if (localExamples.size < 8) localExamples.add(value)
+                }
+                if (localCount > 0) {
                     chineseFiles++
-                    chineseHits += matches.size
-                    if (examples.size < 30) {
-                        examples[entry.name] = matches.take(8).joinToString(" | ") { it.value }
-                    }
+                    chineseHits += localCount
+                    if (examples.size < 30) examples[entry.name] = localExamples.joinToString(" | ")
                 }
             }
         }
@@ -66,15 +72,82 @@ class ApkTranslator(private val context: Context) {
     }
 
     fun generateSigned(source: File, unsigned: File, signed: File): RewriteStats {
-        val stats = rewriteApk(source, unsigned)
+        val official = loadOfficialPtBr(source)
+        val stats = rewriteApk(source, unsigned, official)
         signApk(unsigned, signed)
-        return stats
+        return stats.copy(
+            officialLangFiles = official.filesLoaded,
+            officialLangEntries = official.entriesLoaded
+        )
     }
 
-    private fun rewriteApk(source: File, outFile: File): RewriteStats {
+    /**
+     * Procura pt_BR.lang dentro do próprio APK e indexa as traduções pela pasta.
+     * Assim um zh_CN.lang de um resource pack usa o pt_BR.lang equivalente daquele mesmo pack.
+     */
+    private fun loadOfficialPtBr(source: File): OfficialLangIndex {
+        val byDir = LinkedHashMap<String, Map<String, String>>()
+        val global = LinkedHashMap<String, String>()
+        var filesLoaded = 0
+        var entriesLoaded = 0
+
+        ZipFile(source).use { zip ->
+            val entries = zip.entries()
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+                if (entry.isDirectory) continue
+                val lower = entry.name.lowercase()
+                if (!lower.endsWith("/pt_br.lang") && lower != "pt_br.lang") continue
+                if (entry.size !in 0..MAX_TEXT_BYTES) continue
+
+                val bytes = zip.getInputStream(entry).use { input ->
+                    val out = ByteArrayOutputStream()
+                    val buf = ByteArray(16 * 1024)
+                    var total = 0
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n <= 0) break
+                        total += n
+                        if (total > MAX_TEXT_BYTES) break
+                        out.write(buf, 0, n)
+                    }
+                    out.toByteArray()
+                }
+                val text = decodeUtf8(bytes) ?: continue
+                val parsed = parseLang(text)
+                if (parsed.isEmpty()) continue
+                val dir = entry.name.substringBeforeLast('/', "")
+                byDir[dir] = parsed
+                parsed.forEach { (key, value) -> global.putIfAbsent(key, value) }
+                filesLoaded++
+                entriesLoaded += parsed.size
+            }
+        }
+        return OfficialLangIndex(byDir, global, filesLoaded, entriesLoaded)
+    }
+
+    private fun parseLang(text: String): Map<String, String> {
+        val out = LinkedHashMap<String, String>()
+        text.lineSequence().forEach { line ->
+            val trimmed = line.trimStart()
+            if (trimmed.isEmpty() || trimmed.startsWith("#")) return@forEach
+            val idx = line.indexOf('=')
+            if (idx <= 0) return@forEach
+            val key = line.substring(0, idx).trim()
+            if (key.isEmpty()) return@forEach
+            out[key] = line.substring(idx + 1)
+        }
+        return out
+    }
+
+    private fun rewriteApk(source: File, outFile: File, official: OfficialLangIndex): RewriteStats {
         var filesChanged = 0
-        var replacements = 0
+        var officialReplacements = 0
+        var manualReplacements = 0
+        var remainingChinese = 0
+        var zhCnFilesTranslated = 0
         val counter = CountingOutputStream(BufferedOutputStream(FileOutputStream(outFile)))
+
         ZipInputStream(BufferedInputStream(FileInputStream(source))).use { zin ->
             ZipOutputStream(counter).use { zout ->
                 while (true) {
@@ -92,11 +165,14 @@ class ApkTranslator(private val context: Context) {
                         val bytes = readEntryBytes(zin, MAX_TEXT_BYTES.toInt())
                         val text = decodeUtf8(bytes)
                         if (text != null) {
-                            val translated = translateText(name, text)
+                            val translated = translateText(name, text, official)
                             if (translated.text != text) {
                                 filesChanged++
-                                replacements += translated.replacements
+                                officialReplacements += translated.officialReplacements
+                                manualReplacements += translated.manualReplacements
+                                if (translated.zhCnFile) zhCnFilesTranslated++
                             }
+                            remainingChinese += countChineseRuns(translated.text)
                             val entry = ZipEntry(name).apply { time = original.time }
                             zout.putNextEntry(entry)
                             zout.write(translated.text.toByteArray(Charsets.UTF_8))
@@ -117,7 +193,16 @@ class ApkTranslator(private val context: Context) {
                 }
             }
         }
-        return RewriteStats(filesChanged, replacements)
+        return RewriteStats(
+            filesChanged = filesChanged,
+            replacements = officialReplacements + manualReplacements,
+            officialReplacements = officialReplacements,
+            manualReplacements = manualReplacements,
+            remainingChineseRuns = remainingChinese,
+            zhCnFilesTranslated = zhCnFilesTranslated,
+            officialLangFiles = 0,
+            officialLangEntries = 0
+        )
     }
 
     private fun copyEntryMetadata(original: ZipEntry, currentOffset: Long): ZipEntry {
@@ -147,38 +232,69 @@ class ApkTranslator(private val context: Context) {
         return entry
     }
 
-    private fun translateText(name: String, input: String): TranslationResult {
-        if (name.endsWith(".json", true)) {
+    private fun translateText(name: String, input: String, official: OfficialLangIndex): TranslationResult {
+        val lower = name.lowercase()
+
+        // Principal alvo: zh_CN.lang. Mantém chaves e troca somente os valores.
+        if (lower.endsWith("/zh_cn.lang") || lower == "zh_cn.lang") {
+            val dir = name.substringBeforeLast('/', "")
+            val localPtBr = official.byDir[dir]
+            var officialCount = 0
+            var manualCount = 0
+            val out = input.lineSequence().joinToString("\n") { line ->
+                val idx = line.indexOf('=')
+                if (idx <= 0) return@joinToString line
+                val key = line.substring(0, idx).trim()
+                val originalValue = line.substring(idx + 1)
+                val officialValue = localPtBr?.get(key) ?: official.global[key]
+                if (officialValue != null && placeholdersCompatible(originalValue, officialValue)) {
+                    if (officialValue != originalValue) officialCount++
+                    line.substring(0, idx + 1) + officialValue
+                } else {
+                    val manual = translatePlain(originalValue)
+                    manualCount += manual.manualReplacements
+                    line.substring(0, idx + 1) + manual.text
+                }
+            }
+            return TranslationResult(out, officialCount, manualCount, zhCnFile = true)
+        }
+
+        // Não altera outros arquivos de idioma (.lang) para evitar mexer em japonês/zh_TW/etc.
+        if (lower.endsWith(".lang")) return TranslationResult(input, 0, 0, zhCnFile = false)
+
+        if (lower.endsWith(".json")) {
             return try {
                 val root = JsonParser.parseString(input)
-                var count = 0
+                var manualCount = 0
                 fun translateJson(element: JsonElement): JsonElement = when {
                     element.isJsonPrimitive && element.asJsonPrimitive.isString -> {
                         val r = translatePlain(element.asString)
-                        count += r.replacements
+                        manualCount += r.manualReplacements
                         com.google.gson.JsonPrimitive(r.text)
                     }
                     element.isJsonArray -> JsonArray().also { arr -> element.asJsonArray.forEach { arr.add(translateJson(it)) } }
                     element.isJsonObject -> JsonObject().also { obj -> element.asJsonObject.entrySet().forEach { (k, v) -> obj.add(k, translateJson(v)) } }
                     else -> element.deepCopy()
                 }
-                TranslationResult(Gson().toJson(translateJson(root)), count)
+                TranslationResult(Gson().toJson(translateJson(root)), 0, manualCount, zhCnFile = false)
             } catch (_: Throwable) {
                 translatePlain(input)
             }
         }
-        if (name.endsWith(".lang", true) || name.endsWith(".properties", true)) {
-            var count = 0
+
+        if (lower.endsWith(".properties")) {
+            var manualCount = 0
             val out = input.lineSequence().joinToString("\n") { line ->
                 val idx = line.indexOf('=')
                 if (idx <= 0) line else {
                     val r = translatePlain(line.substring(idx + 1))
-                    count += r.replacements
+                    manualCount += r.manualReplacements
                     line.substring(0, idx + 1) + r.text
                 }
             }
-            return TranslationResult(out, count)
+            return TranslationResult(out, 0, manualCount, zhCnFile = false)
         }
+
         return translatePlain(input)
     }
 
@@ -192,7 +308,13 @@ class ApkTranslator(private val context: Context) {
                 count += occurrences
             }
         }
-        return TranslationResult(result, count)
+        return TranslationResult(result, 0, count, zhCnFile = false)
+    }
+
+    private fun placeholdersCompatible(source: String, target: String): Boolean {
+        val a = placeholderRegex.findAll(source).map { it.value }.sorted().toList()
+        val b = placeholderRegex.findAll(target).map { it.value }.sorted().toList()
+        return a == b
     }
 
     private fun signApk(unsigned: File, signed: File) {
@@ -273,6 +395,16 @@ class ApkTranslator(private val context: Context) {
         }
     }
 
+    private fun countChineseRuns(text: String): Int {
+        var count = 0
+        val it = chineseRegex.findAll(text).iterator()
+        while (it.hasNext()) {
+            it.next()
+            count++
+        }
+        return count
+    }
+
     data class Analysis(
         val packageName: String,
         val versionName: String,
@@ -290,7 +422,7 @@ class ApkTranslator(private val context: Context) {
             appendLine("Arquivos textuais analisados: $textFiles")
             appendLine("Arquivos com chinês: $chineseFiles")
             appendLine("Trechos chineses detectados: $chineseHits")
-            appendLine("resources.arsc compilado: ${if (resourcesArsc) "sim — suporte completo entra em uma próxima versão" else "não detectado"}")
+            appendLine("resources.arsc compilado: ${if (resourcesArsc) "sim — ainda não é alterado pela v0.2" else "não detectado"}")
             if (examples.isNotEmpty()) {
                 appendLine("\nExemplos:")
                 examples.forEach { (file, value) -> appendLine("• $file\n  $value") }
@@ -298,12 +430,35 @@ class ApkTranslator(private val context: Context) {
         }
     }
 
-    data class RewriteStats(val filesChanged: Int, val replacements: Int)
-    private data class TranslationResult(val text: String, val replacements: Int)
+    data class RewriteStats(
+        val filesChanged: Int,
+        val replacements: Int,
+        val officialReplacements: Int,
+        val manualReplacements: Int,
+        val remainingChineseRuns: Int,
+        val zhCnFilesTranslated: Int,
+        val officialLangFiles: Int,
+        val officialLangEntries: Int
+    )
+
+    private data class TranslationResult(
+        val text: String,
+        val officialReplacements: Int,
+        val manualReplacements: Int,
+        val zhCnFile: Boolean
+    )
+
+    private data class OfficialLangIndex(
+        val byDir: Map<String, Map<String, String>>,
+        val global: Map<String, String>,
+        val filesLoaded: Int,
+        val entriesLoaded: Int
+    )
 
     companion object {
         private const val MAX_TEXT_BYTES = 5L * 1024 * 1024
         private val chineseRegex = Regex("[\\u3400-\\u4DBF\\u4E00-\\u9FFF]{2,}")
+        private val placeholderRegex = Regex("%(?:%|\\d+\\$)?[a-zA-Z]")
     }
 }
 
