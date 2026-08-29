@@ -14,6 +14,9 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
+
+import java.util.List;
 
 public final class AddonStudioPanel {
     private AddonStudioPanel() {}
@@ -36,14 +39,29 @@ public final class AddonStudioPanel {
         bg.setCornerRadius(dp(activity, 18));
         root.setBackground(bg);
 
-        TextView title = text(activity, "LeviAddon Studio v0.2", 22);
+        TextView title = text(activity, "LeviAddon Studio v0.3", 22);
         title.setTextColor(Color.WHITE);
         root.addView(title);
 
         TextView subtitle = text(activity,
-                "Criar e editar entidades sem fechar o Minecraft.", 14);
+                "Editor de Addon + Editor Vanilla dentro do Minecraft.", 14);
         subtitle.setTextColor(Color.LTGRAY);
         root.addView(subtitle);
+
+        AddonWorkspace.WorldInfo detected = AddonWorkspace.detectCurrentWorld(activity);
+        TextView worldStatus = text(activity,
+                detected == null ? "Mundo detectado: nenhum" : "Mundo detectado: " + detected.name,
+                13);
+        worldStatus.setTextColor(detected == null ? Color.rgb(255, 170, 100) : Color.rgb(120, 220, 160));
+        root.addView(worldStatus);
+
+        final boolean[] vanillaMode = {false};
+        final int[] entityCursor = {0};
+        final int[] vanillaCursor = {0};
+
+        Button mode = new Button(activity);
+        mode.setText("MODO: ADDON");
+        root.addView(mode);
 
         EditText namespace = field(activity, "Namespace", "victor", false);
         EditText identifier = field(activity, "ID da entidade", "custom_entity", false);
@@ -58,20 +76,69 @@ public final class AddonStudioPanel {
         root.addView(damage);
 
         TextView status = text(activity,
-                "Entidades salvas: " + AddonWorkspace.listEntities(activity).size() +
+                "Entidades do Studio: " + AddonWorkspace.listCustomEntities(activity).size() +
+                        "\nTemplates vanilla: " + AddonWorkspace.listVanillaTemplates(activity).size() +
                         "\nWorkspace: " + AddonWorkspace.getWorkspacePath(activity),
                 13);
         status.setTextColor(Color.LTGRAY);
         status.setPadding(0, dp(activity, 10), 0, dp(activity, 10));
         root.addView(status);
 
-        final int[] entityCursor = {0};
         Button nextEntity = new Button(activity);
         nextEntity.setText("CARREGAR PROXIMA ENTIDADE");
+        root.addView(nextEntity);
+
+        mode.setOnClickListener(v -> {
+            vanillaMode[0] = !vanillaMode[0];
+            entityCursor[0] = 0;
+            vanillaCursor[0] = 0;
+            if (vanillaMode[0]) {
+                mode.setText("MODO: VANILLA");
+                namespace.setText("minecraft");
+                namespace.setEnabled(false);
+                identifier.setText("zombie");
+                health.setText("20");
+                movement.setText("0.23");
+                damage.setText("3");
+                status.setText("Modo Vanilla: usa a definicao oficial completa como base e altera somente os componentes encontrados.");
+                status.setTextColor(Color.rgb(255, 210, 110));
+            } else {
+                mode.setText("MODO: ADDON");
+                namespace.setEnabled(true);
+                namespace.setText("victor");
+                identifier.setText("custom_entity");
+                health.setText("20");
+                movement.setText("0.20");
+                damage.setText("3");
+                status.setText("Modo Addon: cria ou edita entidades do LeviAddonStudio_BP.");
+                status.setTextColor(Color.LTGRAY);
+            }
+        });
+
         nextEntity.setOnClickListener(v -> {
-            java.util.List<AddonWorkspace.EntityInfo> entities = AddonWorkspace.listEntities(activity);
+            if (vanillaMode[0]) {
+                List<AddonWorkspace.EntityInfo> entities = AddonWorkspace.listVanillaTemplates(activity);
+                if (entities.isEmpty()) {
+                    status.setText("Nenhum template vanilla foi incluido no APK.");
+                    status.setTextColor(Color.rgb(255, 120, 120));
+                    return;
+                }
+                int index = vanillaCursor[0] % entities.size();
+                vanillaCursor[0] = index + 1;
+                AddonWorkspace.EntityInfo info = entities.get(index);
+                namespace.setText("minecraft");
+                identifier.setText(info.entityName);
+                health.setText(formatNumber(info.health));
+                movement.setText(formatNumber(info.movement));
+                damage.setText(formatNumber(info.damage));
+                status.setText("Vanilla: " + info.identifier + "\nTemplate oficial carregado.");
+                status.setTextColor(Color.rgb(255, 210, 110));
+                return;
+            }
+
+            List<AddonWorkspace.EntityInfo> entities = AddonWorkspace.listCustomEntities(activity);
             if (entities.isEmpty()) {
-                status.setText("Nenhuma entidade criada ainda.");
+                status.setText("Nenhuma entidade custom criada ainda.");
                 status.setTextColor(Color.GRAY);
                 return;
             }
@@ -83,31 +150,42 @@ public final class AddonStudioPanel {
             health.setText(formatNumber(info.health));
             movement.setText(formatNumber(info.movement));
             damage.setText(formatNumber(info.damage));
-            status.setText("Editando: " + info.identifier + "\n" + info.file.getAbsolutePath());
+            status.setText("Editando: " + info.identifier + "\n" +
+                    (info.file == null ? "" : info.file.getAbsolutePath()));
             status.setTextColor(Color.rgb(120, 190, 255));
         });
-        root.addView(nextEntity);
 
-        Button create = new Button(activity);
-        create.setText("CRIAR / SALVAR");
-        create.setOnClickListener(v -> {
+        Button save = new Button(activity);
+        save.setText("CRIAR / SALVAR");
+        save.setOnClickListener(v -> {
             try {
                 double h = parse(health.getText().toString(), 20);
                 double m = parse(movement.getText().toString(), 0.20);
                 double d = parse(damage.getText().toString(), 3);
-
-                AddonWorkspace.Result result = AddonWorkspace.writeEntity(
-                        activity,
-                        namespace.getText().toString(),
-                        identifier.getText().toString(),
-                        h, m, d
-                );
-
-                status.setText(
-                        "Salvo: " + result.identifier +
-                        "\nEntidades salvas: " + AddonWorkspace.listEntities(activity).size() +
-                        "\n" + result.entityFile.getAbsolutePath()
-                );
+                AddonWorkspace.Result result;
+                if (vanillaMode[0]) {
+                    result = AddonWorkspace.writeVanillaOverride(
+                            activity, identifier.getText().toString(), h, m, d);
+                    status.setText(
+                            "Vanilla salvo: " + result.identifier +
+                            "\nhealth alterado em " + result.healthEdits + " ponto(s)" +
+                            "\nmovement alterado em " + result.movementEdits + " ponto(s)" +
+                            "\nattack alterado em " + result.damageEdits + " ponto(s)" +
+                            "\n" + result.entityFile.getAbsolutePath()
+                    );
+                } else {
+                    result = AddonWorkspace.writeEntity(
+                            activity,
+                            namespace.getText().toString(),
+                            identifier.getText().toString(),
+                            h, m, d
+                    );
+                    status.setText(
+                            "Salvo: " + result.identifier +
+                            "\nEntidades do Studio: " + AddonWorkspace.listCustomEntities(activity).size() +
+                            "\n" + result.entityFile.getAbsolutePath()
+                    );
+                }
                 status.setTextColor(Color.rgb(120, 235, 140));
             } catch (Throwable throwable) {
                 status.setText("Erro: " + throwable.getClass().getSimpleName()
@@ -115,7 +193,47 @@ public final class AddonStudioPanel {
                 status.setTextColor(Color.rgb(255, 120, 120));
             }
         });
-        root.addView(create);
+        root.addView(save);
+
+        Button spawn = new Button(activity);
+        spawn.setText("SPAWN / TESTAR");
+        spawn.setOnClickListener(v -> {
+            String ns = vanillaMode[0] ? "minecraft" : namespace.getText().toString().trim();
+            String id = identifier.getText().toString().trim();
+            if (id.contains(":")) {
+                String[] parts = id.split(":", 2);
+                ns = parts[0];
+                id = parts[1];
+            }
+            String fullId = ns + ":" + id;
+            dialog.dismiss();
+            AddonStudioGameBridge.spawn(activity, fullId);
+        });
+        root.addView(spawn);
+
+        Button apply = new Button(activity);
+        apply.setText("APLICAR NO MUNDO + RELOAD ALL");
+        apply.setOnClickListener(v -> {
+            try {
+                AddonWorkspace.WorldInfo world = AddonWorkspace.activatePackForCurrentWorld(activity);
+                Toast.makeText(activity,
+                        "Pack vinculado a " + world.name + ". Recarregando...",
+                        Toast.LENGTH_LONG).show();
+                dialog.dismiss();
+                AddonStudioGameBridge.reloadAll(activity);
+            } catch (Throwable throwable) {
+                status.setText("Falha ao aplicar: " + throwable.getClass().getSimpleName()
+                        + "\n" + String.valueOf(throwable.getMessage()));
+                status.setTextColor(Color.rgb(255, 120, 120));
+            }
+        });
+        root.addView(apply);
+
+        TextView reloadNote = text(activity,
+                "Reload All requer cheats/permissao de administrador. O jogo pode reentrar automaticamente no mundo para recarregar os packs.",
+                12);
+        reloadNote.setTextColor(Color.GRAY);
+        root.addView(reloadNote);
 
         Button close = new Button(activity);
         close.setText("FECHAR");
@@ -130,11 +248,10 @@ public final class AddonStudioPanel {
             window.setBackgroundDrawableResource(android.R.color.transparent);
             window.setDimAmount(0.45f);
             window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-
             WindowManager.LayoutParams params = new WindowManager.LayoutParams();
             params.copyFrom(window.getAttributes());
-            params.width = (int) (activity.getResources().getDisplayMetrics().widthPixels * 0.86f);
-            params.height = (int) (activity.getResources().getDisplayMetrics().heightPixels * 0.82f);
+            params.width = (int) (activity.getResources().getDisplayMetrics().widthPixels * 0.88f);
+            params.height = (int) (activity.getResources().getDisplayMetrics().heightPixels * 0.86f);
             params.gravity = Gravity.CENTER;
             window.setAttributes(params);
         }
@@ -171,11 +288,8 @@ public final class AddonStudioPanel {
     }
 
     private static double parse(String value, double fallback) {
-        try {
-            return Double.parseDouble(value.trim().replace(',', '.'));
-        } catch (Throwable ignored) {
-            return fallback;
-        }
+        try { return Double.parseDouble(value.trim().replace(',', '.')); }
+        catch (Throwable ignored) { return fallback; }
     }
 
     private static String formatNumber(double value) {
