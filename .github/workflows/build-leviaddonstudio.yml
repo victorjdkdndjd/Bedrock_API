@@ -1,0 +1,124 @@
+name: Build LeviAddon Studio APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "leviaddonstudio/**"
+      - ".github/workflows/build-leviaddonstudio.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout Bedrock_API builder
+        uses: actions/checkout@v4
+
+      - name: Clone pinned LeviLaunchroid
+        run: |
+          git clone --recurse-submodules https://github.com/LiteLDev/LeviLaunchroid.git upstream
+          cd upstream
+          git checkout 46b42daa6be240b180016bb55fa36018e7784506
+          git submodule update --init --recursive
+
+      - name: Install LeviAddon Studio source
+        run: |
+          mkdir -p upstream/app/src/main/java/org/levimc/launcher/addonstudio
+          cp leviaddonstudio/AddonStudioController.java upstream/app/src/main/java/org/levimc/launcher/addonstudio/
+          cp leviaddonstudio/AddonStudioPanel.java upstream/app/src/main/java/org/levimc/launcher/addonstudio/
+          cp leviaddonstudio/AddonWorkspace.java upstream/app/src/main/java/org/levimc/launcher/addonstudio/
+          cd upstream
+          python3 ../leviaddonstudio/apply_patch.py
+          git diff -- app/src/main/java/org/levimc/launcher/core/minecraft/MinecraftActivity.kt \
+            app/src/main/java/org/levimc/launcher/addonstudio/
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses >/dev/null || true
+
+      - name: Install Android build tools
+        run: sdkmanager "build-tools;35.0.0" "platforms;android-35"
+
+      - name: Setup Xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: "2.9.9"
+          actions-cache-folder: ".xmake-cache"
+          actions-cache-key: "leviaddonstudio-ci"
+
+      - name: Setup Android NDK r28c
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r28c
+          link-to-sdk: true
+
+      - name: Prepare CI configuration
+        working-directory: upstream
+        run: |
+          chmod +x ./gradlew
+          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+          printf 'curseforge.api_key=\n' >> local.properties
+          cat > app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "leviaddonstudio-ci",
+              "storage_bucket": "leviaddonstudio-ci.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+                  "android_client_info": {
+                    "package_name": "org.levimc.launcher"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  { "current_key": "AIzaSyCIOnlyPlaceholderKey" }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+
+      - name: Build debug APK
+        working-directory: upstream
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Collect APK
+        run: |
+          APK="$(find upstream/app/build/outputs/apk/debug -type f -name '*.apk' | head -n 1)"
+          if [ -z "$APK" ]; then
+            echo "APK not found"
+            exit 1
+          fi
+          cp "$APK" LeviAddonStudio-v0.1-arm64-debug.apk
+          ls -lh LeviAddonStudio-v0.1-arm64-debug.apk
+
+      - name: Upload LeviAddon Studio APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LeviAddonStudio-v0.1-arm64-debug
+          path: LeviAddonStudio-v0.1-arm64-debug.apk
+          if-no-files-found: error
+          retention-days: 14
