@@ -33,11 +33,11 @@ jobs:
       - name: Collect APK
         run: |
           mkdir -p out
-          cp ChinaBedrockTranslator/app/build/outputs/apk/debug/app-debug.apk out/ChinaBedrock-Translator-v0.1.1.apk
-          sha256sum out/ChinaBedrock-Translator-v0.1.1.apk
+          cp ChinaBedrockTranslator/app/build/outputs/apk/debug/app-debug.apk out/ChinaBedrock-Translator-v0.2.0.apk
+          sha256sum out/ChinaBedrock-Translator-v0.2.0.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ChinaBedrock-Translator-v0.1.1
-          path: out/ChinaBedrock-Translator-v0.1.1.apk
+          name: ChinaBedrock-Translator-v0.2.0
+          path: out/ChinaBedrock-Translator-v0.2.0.apk
           retention-days: 90
