@@ -11,8 +11,8 @@ android {
         applicationId = "com.victor.chinabedrocktranslator"
         minSdk = 28
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.2.0"
+        versionCode = 5
+        versionName = "0.2.2"
     }
 
     buildTypes {
