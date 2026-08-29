@@ -36,12 +36,12 @@ public final class AddonStudioPanel {
         bg.setCornerRadius(dp(activity, 18));
         root.setBackground(bg);
 
-        TextView title = text(activity, "LeviAddon Studio v0.1", 22);
+        TextView title = text(activity, "LeviAddon Studio v0.2", 22);
         title.setTextColor(Color.WHITE);
         root.addView(title);
 
         TextView subtitle = text(activity,
-                "Criar/editar uma entidade sem fechar o Minecraft.", 14);
+                "Criar e editar entidades sem fechar o Minecraft.", 14);
         subtitle.setTextColor(Color.LTGRAY);
         root.addView(subtitle);
 
@@ -58,7 +58,7 @@ public final class AddonStudioPanel {
         root.addView(damage);
 
         TextView status = text(activity,
-                "O v0.1 escreve os arquivos em development_behavior_packs e development_resource_packs.",
+                "v0.2: preparando lista de entidades, edicao e testes no mundo.",
                 13);
         status.setTextColor(Color.LTGRAY);
         status.setPadding(0, dp(activity, 10), 0, dp(activity, 10));
@@ -81,8 +81,7 @@ public final class AddonStudioPanel {
 
                 status.setText(
                         "Salvo: " + result.identifier +
-                        "\n\n" + result.entityFile.getAbsolutePath() +
-                        "\n\nAgora falta a etapa de reload/hot-apply do pack."
+                        "\n\n" + result.entityFile.getAbsolutePath()
                 );
                 status.setTextColor(Color.rgb(120, 235, 140));
             } catch (Throwable throwable) {
