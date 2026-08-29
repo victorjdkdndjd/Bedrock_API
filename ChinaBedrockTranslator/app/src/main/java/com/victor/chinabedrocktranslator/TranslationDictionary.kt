@@ -1,7 +1,22 @@
 package com.victor.chinabedrocktranslator
 
 object TranslationDictionary {
+    /**
+     * Fallback manual para textos exclusivos da edição chinesa / NetEase.
+     * A v0.2 tenta primeiro reaproveitar pt_BR.lang pela mesma chave.
+     */
     val ptBr: Map<String, String> = linkedMapOf(
+        // Tela de carregamento / teste visual
+        "正在下载资源，请勿关闭游戏" to "Baixando recursos, não feche o jogo",
+        "剩余时间预计" to "Tempo restante estimado",
+        "本次下载" to "Download atual",
+        "版本号" to "Versão",
+        "引擎" to "Motor",
+        "声音" to "Som",
+        "速度" to "Velocidade",
+        "小时" to "horas",
+
+        // Interface geral
         "开始游戏" to "Jogar",
         "设置" to "Configurações",
         "资源中心" to "Central de Recursos",
@@ -26,7 +41,6 @@ object TranslationDictionary {
         "成就" to "Conquistas",
         "语言" to "Idioma",
         "音乐" to "Música",
-        "声音" to "Som",
         "视频" to "Vídeo",
         "网络" to "Rede",
         "账号" to "Conta",
@@ -44,6 +58,15 @@ object TranslationDictionary {
         "搜索" to "Pesquisar",
         "分享" to "Compartilhar",
         "安装" to "Instalar",
-        "游戏" to "Jogo"
+        "游戏" to "Jogo",
+        "退出" to "Sair",
+        "连接" to "Conectar",
+        "断开连接" to "Desconectar",
+        "确认" to "Confirmar",
+        "正在加载" to "Carregando",
+        "正在连接" to "Conectando",
+        "正在下载" to "Baixando",
+        "加载资源" to "Carregando recursos",
+        "下载资源" to "Baixando recursos"
     )
 }
