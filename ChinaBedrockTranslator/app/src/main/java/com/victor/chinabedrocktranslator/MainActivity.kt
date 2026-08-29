@@ -58,11 +58,11 @@ class MainActivity : AppCompatActivity() {
             setPadding(pad, pad, pad, pad)
         }
         root.addView(TextView(this).apply {
-            text = "ChinaBedrock Translator v0.1.1"
+            text = "ChinaBedrock Translator v0.2.0"
             textSize = 26f
         })
         root.addView(TextView(this).apply {
-            text = "Importe o APK do Minecraft China. Esta versão usa análise em streaming para APKs grandes."
+            text = "Usa pt_BR.lang do próprio Minecraft por chave e fallback para textos exclusivos da edição chinesa."
             textSize = 15f
         })
         importButton = Button(this).apply {
@@ -79,7 +79,7 @@ class MainActivity : AppCompatActivity() {
             isEnabled = false
             setOnClickListener {
                 val version = analysis?.versionName ?: "traduzido"
-                createApk.launch("Minecraft-China-PTBR-$version.apk")
+                createApk.launch("Minecraft-China-PTBR-$version-v0.2.apk")
             }
         }
         progress = ProgressBar(this).apply { visibility = View.GONE }
@@ -103,10 +103,9 @@ class MainActivity : AppCompatActivity() {
     private fun importApk(uri: Uri) {
         busy(true)
         setStatus("Copiando APK para área de trabalho…")
-        details.text = "O APK é grande; a análise pode demorar, mas agora é feita em streaming para reduzir uso de RAM."
+        details.text = "O APK é grande; a análise é feita em streaming para reduzir o uso de RAM."
         thread {
             try {
-                // Do not accumulate multiple multi-GB imports in cache.
                 cacheDir.listFiles()?.filter { it.name.startsWith("imported_") }?.forEach { it.delete() }
 
                 val input = File(cacheDir, "imported_${System.currentTimeMillis()}.apk")
@@ -124,12 +123,12 @@ class MainActivity : AppCompatActivity() {
                     buildButton.isEnabled = true
                     exportButton.isEnabled = false
                     setStatus(if (found.packageName == "com.netease.x19") "Minecraft China reconhecido ✅" else "APK importado, mas package não é com.netease.x19 ⚠️")
-                    details.text = found.pretty() + "\nAnalisador: streaming/baixo uso de memória (v0.1.1)"
+                    details.text = found.pretty() + "\nAnalisador: streaming/baixo uso de memória\n\nNa v0.2, a tradução oficial é aplicada somente durante GERAR APK PT-BR."
                     busy(false)
                 }
             } catch (oom: OutOfMemoryError) {
                 runOnUiThread {
-                    setStatus("Memória insuficiente durante a análise. A v0.1.1 reduziu bastante o uso; envie esta mensagem se ainda ocorrer.")
+                    setStatus("Memória insuficiente durante a análise.")
                     busy(false)
                 }
             } catch (t: Throwable) {
@@ -145,7 +144,7 @@ class MainActivity : AppCompatActivity() {
         val source = importedApk ?: return
         busy(true)
         buildButton.isEnabled = false
-        setStatus("Traduzindo, reconstruindo e assinando…")
+        setStatus("Indexando pt_BR.lang, traduzindo zh_CN.lang, reconstruindo e assinando…")
         thread {
             try {
                 val unsigned = File(cacheDir, "minecraft_china_ptbr_unsigned.apk")
@@ -154,17 +153,34 @@ class MainActivity : AppCompatActivity() {
                 signed.delete()
                 val stats = translator.generateSigned(source, unsigned, signed)
                 generatedApk = signed
+                val totalDetected = analysis?.chineseHits ?: 0
+                val translated = stats.replacements
+                val approxCoverage = if (totalDetected > 0) (translated * 100.0 / totalDetected).coerceAtMost(100.0) else 0.0
                 runOnUiThread {
                     exportButton.isEnabled = true
                     buildButton.isEnabled = true
-                    details.append("\n\n=== GERAÇÃO PT-BR ===\nArquivos alterados: ${stats.filesChanged}\nSubstituições: ${stats.replacements}\nAPK assinado: ${signed.length() / (1024 * 1024)} MB\n\nIMPORTANTE: esta é uma assinatura de teste, não a assinatura oficial da NetEase. O APK pode ser recusado por verificações de integridade. Para instalar, normalmente será necessário remover a instalação oficial com o mesmo package primeiro.")
-                    setStatus("APK PT-BR de teste gerado ✅")
+                    details.append(
+                        "\n\n=== GERAÇÃO PT-BR v0.2 ===" +
+                            "\nArquivos pt_BR.lang encontrados: ${stats.officialLangFiles}" +
+                            "\nEntradas oficiais indexadas: ${stats.officialLangEntries}" +
+                            "\nzh_CN.lang alterados: ${stats.zhCnFilesTranslated}" +
+                            "\nArquivos alterados no total: ${stats.filesChanged}" +
+                            "\nTraduções oficiais por chave: ${stats.officialReplacements}" +
+                            "\nFallbacks manuais/NetEase: ${stats.manualReplacements}" +
+                            "\nSubstituições totais: ${stats.replacements}" +
+                            "\nTrechos chineses ainda detectados nos arquivos processados: ${stats.remainingChineseRuns}" +
+                            "\nCobertura aproximada vs. análise inicial: %.1f%%".format(approxCoverage) +
+                            "\nAPK assinado: ${signed.length() / (1024 * 1024)} MB" +
+                            "\n\nTESTE VISUAL: depois de instalar, observe a tela de download. Se os textos vierem de assets textuais, devem aparecer termos como Som, Versão, Motor e Baixando recursos." +
+                            "\n\nIMPORTANTE: resources.arsc ainda não é reescrito e a assinatura continua sendo de teste, não a oficial da NetEase."
+                    )
+                    setStatus("APK PT-BR v0.2 gerado ✅")
                     busy(false)
                 }
             } catch (oom: OutOfMemoryError) {
                 runOnUiThread {
                     buildButton.isEnabled = true
-                    setStatus("Memória insuficiente durante a reconstrução. A próxima etapa será tornar a geração também totalmente streaming.")
+                    setStatus("Memória insuficiente durante a reconstrução.")
                     busy(false)
                 }
             } catch (t: Throwable) {
