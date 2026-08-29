@@ -39,9 +39,13 @@ jobs:
           branch: buildjre8
           name: jre8-pojav
 
-      - name: Apply Victor v0.4 patch
+      - name: Apply Victor v0.4 base patch
         working-directory: amethyst
         run: python3 ../build/victor_patch.py
+
+      - name: Apply v0.4.1 jar import fix
+        working-directory: amethyst
+        run: python3 ../build/victor_jar_import_patch.py
 
       - name: Prepare sources
         working-directory: amethyst
@@ -56,13 +60,13 @@ jobs:
       - name: Collect APK
         run: |
           mkdir -p out
-          cp amethyst/app_pojavlauncher/build/outputs/apk/debug/app_pojavlauncher-debug.apk out/VictorJavaLauncher-Offline-v0.4.0-debug.apk
-          sha256sum out/VictorJavaLauncher-Offline-v0.4.0-debug.apk > out/VictorJavaLauncher-Offline-v0.4.0-debug.sha256
+          cp amethyst/app_pojavlauncher/build/outputs/apk/debug/app_pojavlauncher-debug.apk out/VictorJavaLauncher-Offline-v0.4.1-debug.apk
+          sha256sum out/VictorJavaLauncher-Offline-v0.4.1-debug.apk > out/VictorJavaLauncher-Offline-v0.4.1-debug.sha256
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: VictorJavaLauncher-Offline-v0.4.0-debug
+          name: VictorJavaLauncher-Offline-v0.4.1-debug
           path: out/*
           if-no-files-found: error
 
@@ -70,7 +74,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: VictorJavaLauncher-build-diagnostics
+          name: VictorJavaLauncher-build-diagnostics-v0.4.1
           path: |
             amethyst/app_pojavlauncher/build/reports/**
             amethyst/app_pojavlauncher/build/outputs/logs/**
