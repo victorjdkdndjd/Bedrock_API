@@ -26,6 +26,25 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Apply v0.2.1 ZIP unknown-size fix
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('ChinaBedrockTranslator/app/src/main/java/com/victor/chinabedrocktranslator/ApkTranslator.kt')
+          s = p.read_text()
+          old = 'val shouldTranslate = isTextCandidate(name) && original.size in 0..MAX_TEXT_BYTES'
+          new = 'val shouldTranslate = isTextCandidate(name) && (original.size < 0 || original.size <= MAX_TEXT_BYTES)'
+          if old not in s:
+              raise SystemExit('expected translation size condition not found')
+          p.write_text(s.replace(old, new, 1))
+
+          g = Path('ChinaBedrockTranslator/app/build.gradle.kts')
+          b = g.read_text()
+          b = b.replace('versionCode = 3', 'versionCode = 4')
+          b = b.replace('versionName = "0.2.0"', 'versionName = "0.2.1"')
+          g.write_text(b)
+          PY
+
       - name: Build APK
         working-directory: ChinaBedrockTranslator
         run: gradle :app:assembleDebug --stacktrace
@@ -33,11 +52,11 @@ jobs:
       - name: Collect APK
         run: |
           mkdir -p out
-          cp ChinaBedrockTranslator/app/build/outputs/apk/debug/app-debug.apk out/ChinaBedrock-Translator-v0.2.0.apk
-          sha256sum out/ChinaBedrock-Translator-v0.2.0.apk
+          cp ChinaBedrockTranslator/app/build/outputs/apk/debug/app-debug.apk out/ChinaBedrock-Translator-v0.2.1.apk
+          sha256sum out/ChinaBedrock-Translator-v0.2.1.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ChinaBedrock-Translator-v0.2.0
-          path: out/ChinaBedrock-Translator-v0.2.0.apk
+          name: ChinaBedrock-Translator-v0.2.1
+          path: out/ChinaBedrock-Translator-v0.2.1.apk
           retention-days: 90
