@@ -159,13 +159,13 @@ jobs:
             echo "APK not found"
             exit 1
           fi
-          cp "$APK" LeviAddonStudio-v0.3-arm64-debug.apk
-          ls -lh LeviAddonStudio-v0.3-arm64-debug.apk
+          cp "$APK" LeviAddonStudio-v0.3.1-arm64-debug.apk
+          ls -lh LeviAddonStudio-v0.3.1-arm64-debug.apk
 
       - name: Upload LeviAddon Studio APK
         uses: actions/upload-artifact@v4
         with:
-          name: LeviAddonStudio-v0.3-arm64-debug
-          path: LeviAddonStudio-v0.3-arm64-debug.apk
+          name: LeviAddonStudio-v0.3.1-arm64-debug
+          path: LeviAddonStudio-v0.3.1-arm64-debug.apk
           if-no-files-found: error
           retention-days: 14
