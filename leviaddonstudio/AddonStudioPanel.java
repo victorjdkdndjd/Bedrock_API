@@ -65,6 +65,29 @@ public final class AddonStudioPanel {
         status.setPadding(0, dp(activity, 10), 0, dp(activity, 10));
         root.addView(status);
 
+        final int[] entityCursor = {0};
+        Button nextEntity = new Button(activity);
+        nextEntity.setText("CARREGAR PROXIMA ENTIDADE");
+        nextEntity.setOnClickListener(v -> {
+            java.util.List<AddonWorkspace.EntityInfo> entities = AddonWorkspace.listEntities(activity);
+            if (entities.isEmpty()) {
+                status.setText("Nenhuma entidade criada ainda.");
+                status.setTextColor(Color.GRAY);
+                return;
+            }
+            int index = entityCursor[0] % entities.size();
+            entityCursor[0] = index + 1;
+            AddonWorkspace.EntityInfo info = entities.get(index);
+            namespace.setText(info.namespace);
+            identifier.setText(info.entityName);
+            health.setText(formatNumber(info.health));
+            movement.setText(formatNumber(info.movement));
+            damage.setText(formatNumber(info.damage));
+            status.setText("Editando: " + info.identifier + "\n" + info.file.getAbsolutePath());
+            status.setTextColor(Color.rgb(120, 190, 255));
+        });
+        root.addView(nextEntity);
+
         Button create = new Button(activity);
         create.setText("CRIAR / SALVAR");
         create.setOnClickListener(v -> {
@@ -153,6 +176,11 @@ public final class AddonStudioPanel {
         } catch (Throwable ignored) {
             return fallback;
         }
+    }
+
+    private static String formatNumber(double value) {
+        if (Math.rint(value) == value) return String.valueOf((long) value);
+        return String.valueOf(value);
     }
 
     private static int dp(Activity activity, int value) {
