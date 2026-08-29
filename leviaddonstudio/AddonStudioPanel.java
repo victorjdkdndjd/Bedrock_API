@@ -58,7 +58,8 @@ public final class AddonStudioPanel {
         root.addView(damage);
 
         TextView status = text(activity,
-                "v0.2: preparando lista de entidades, edicao e testes no mundo.",
+                "Entidades salvas: " + AddonWorkspace.listEntities(activity).size() +
+                        "\nWorkspace: " + AddonWorkspace.getWorkspacePath(activity),
                 13);
         status.setTextColor(Color.LTGRAY);
         status.setPadding(0, dp(activity, 10), 0, dp(activity, 10));
@@ -81,7 +82,8 @@ public final class AddonStudioPanel {
 
                 status.setText(
                         "Salvo: " + result.identifier +
-                        "\n\n" + result.entityFile.getAbsolutePath()
+                        "\nEntidades salvas: " + AddonWorkspace.listEntities(activity).size() +
+                        "\n" + result.entityFile.getAbsolutePath()
                 );
                 status.setTextColor(Color.rgb(120, 235, 140));
             } catch (Throwable throwable) {
