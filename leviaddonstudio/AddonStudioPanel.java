@@ -39,7 +39,7 @@ public final class AddonStudioPanel {
         bg.setCornerRadius(dp(activity, 18));
         root.setBackground(bg);
 
-        TextView title = text(activity, "LeviAddon Studio v0.3", 22);
+        TextView title = text(activity, "LeviAddon Studio v0.3.1", 22);
         title.setTextColor(Color.WHITE);
         root.addView(title);
 
@@ -230,7 +230,7 @@ public final class AddonStudioPanel {
         root.addView(apply);
 
         TextView reloadNote = text(activity,
-                "Reload All requer cheats/permissao de administrador. O jogo pode reentrar automaticamente no mundo para recarregar os packs.",
+                "v0.3.1: o bridge espera o foco voltar ao jogo e mostra se slash/texto/Enter foram aceitos. Reload All requer cheats/permissao de administrador.",
                 12);
         reloadNote.setTextColor(Color.GRAY);
         root.addView(reloadNote);
@@ -288,8 +288,11 @@ public final class AddonStudioPanel {
     }
 
     private static double parse(String value, double fallback) {
-        try { return Double.parseDouble(value.trim().replace(',', '.')); }
-        catch (Throwable ignored) { return fallback; }
+        try {
+            return Double.parseDouble(value.trim().replace(',', '.'));
+        } catch (Throwable ignored) {
+            return fallback;
+        }
     }
 
     private static String formatNumber(double value) {
